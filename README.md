@@ -1,5 +1,7 @@
 [![ReVanced](https://img.shields.io/badge/ReVanced-Apks-teal)](https://github.com/ReVanced/ReVanced)
 
+![GitHub License](https://img.shields.io/github/license/printf-dj/revancedapks) ![GitHub Release Date](https://img.shields.io/github/release-date/Printf-dj/Revancedapks)
+
 **New builds are released every Sunday!**
 
 ### Supported Apps
