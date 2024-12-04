@@ -5,7 +5,6 @@ parallel-jobs = 1
 [YouTube]
 excluded-patches = "'Custom branding'"
 included-patches = "'Change header'"
-patcher-args = "-Oheader=premium*header"
 version = "auto"
 apkmirror-dlurl = "https://www.apkmirror.com/apk/google-inc/youtube"
 uptodown-dlurl = "https://youtube.en.uptodown.com/android"
