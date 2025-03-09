@@ -1,4 +1,3 @@
-Google-Photos: 7.18.0.729565054  
 Music: 8.05.51  
 YouTube: 19.47.53  
 
