@@ -4,11 +4,13 @@ parallel-jobs = 1
 
 [YouTube]
 excluded-patches = "'Custom branding'"
+build-mode = "apk"
 version = "auto"
 apkmirror-dlurl = "https://www.apkmirror.com/apk/google-inc/youtube"
 uptodown-dlurl = "https://youtube.en.uptodown.com/android"
 
 [Music]
+build-mode = "apk"
 arch = "arm64-v8a"
 apkmirror-dlurl = "https://www.apkmirror.com/apk/google-inc/youtube-music"
 uptodown-dlurl = "https://youtube-music.en.uptodown.com/android"
@@ -23,6 +25,6 @@ uptodown-dlurl = "https://twitter.en.uptodown.com/android"
 [Google-Photos]
 build-mode = "apk"
 version = "auto"
-arch = "arm64-v8a"
+arch = "both"
 apkmirror-dlurl = "https://www.apkmirror.com/apk/google-inc/photos"
 uptodown-dlurl = "https://google-photos.en.uptodown.com/android"
