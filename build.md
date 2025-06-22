@@ -1,3 +1,4 @@
+Google-Photos (arm64-v8a): 7.34.0.773090893  
 Music: 8.05.51  
 YouTube: 20.12.46  
 
