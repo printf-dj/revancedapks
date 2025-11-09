@@ -18,6 +18,7 @@ uptodown-dlurl = "https://youtube-music.en.uptodown.com/android"
 [X]
 excluded-patches = "'Change link sharing domain'"
 build-mode = "apk"
+version = "latest"
 dpi = "120-640dpi"
 apkmirror-dlurl = "https://www.apkmirror.com/apk/x-corp/twitter"
 uptodown-dlurl = "https://twitter.en.uptodown.com/android"
