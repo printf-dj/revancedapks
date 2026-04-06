@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -26,6 +26,7 @@ jobs:
           else
             UPDATE_CFG=$(./build.sh config.toml --config-update)
             if [ "$UPDATE_CFG" ]; then
+              echo "'$UPDATE_CFG'"
               echo "SHOULD_BUILD=1" >> $GITHUB_OUTPUT
             else
               echo "SHOULD_BUILD=0" >> $GITHUB_OUTPUT
