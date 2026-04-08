@@ -32,13 +32,13 @@
 
 # Installation Instructions
 
-1. **Install MicroG:** Follow the official instructions for MicroG installation provided on the download page (linked above).
+1. **Install MicroG:** Follow the official instructions for MicroG installation provided on the download page.
 2. **Download** the desired ReVanced APK from the provided link.
 3. **Enable Unknown Sources:** On your device, go to Settings > Security & Privacy > Install Unknown Apps and enable it for your preferred browser.
 4. **Install** the downloaded ReVanced APK.
 
 # Credits
-[j-hc](https://github.com/j-hc) for [zygisk-detach](https://github.com/j-hc/zygisk-detach) and the [script on which this is based on](https://github.com/j-hc/revanced-magisk-module).
+[j-hc](https://github.com/j-hc) for the [script on which this is based on](https://github.com/j-hc/revanced-magisk-module).
 
 [ReVanced Team](https://github.com/revanced) for their [patches](https://github.com/revanced/revanced-patches).
 
