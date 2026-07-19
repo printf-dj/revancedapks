@@ -76,7 +76,7 @@ for table_name in $(toml_get_table_names); do
 		epr "Could not get prebuilts"
 		continue
 	fi
-	read -r cli_jar patches_jar <<<"$PREBUILTS"
+	read -r patches_jar cli_jar <<<"$PREBUILTS"
 	app_args[cli]=$cli_jar
 	app_args[ptjar]=$patches_jar
 	app_args[rv_brand]=$(toml_get "$t" rv-brand) || app_args[rv_brand]=$DEF_RV_BRAND
@@ -112,7 +112,7 @@ for table_name in $(toml_get_table_names); do
 		abort "wrong arch '${app_args[arch]}' for '$table_name'"
 	fi
 
-	app_args[include_stock]=$(toml_get "$t" include-stock) || app_args[include_stock]=true && vtf "${app_args[include_stock]}" "include-stock"
+	app_args[pkg_name]=$(toml_get "$t" pkg-name) || app_args[pkg_name]=""
 	app_args[dpi]=$(toml_get "$t" dpi) || app_args[dpi]=""
 	table_name_f=${table_name,,}
 	table_name_f=${table_name_f// /-}
@@ -145,7 +145,7 @@ for table_name in $(toml_get_table_names); do
 	fi
 done
 wait
-rm -rf temp/tmp.*
+_clean_tmp
 if [ -z "$(ls -A1 "${BUILD_DIR}")" ]; then abort "All builds failed."; fi
 
 log "\nInstall [Microg](https://github.com/ReVanced/GmsCore/releases) for non-root YouTube, YT Music and Google Photos APKs"
