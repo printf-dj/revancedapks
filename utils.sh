@@ -120,11 +120,25 @@ get_prebuilts() {
 		if [ -z "$file" ]; then
 			local resp asset name
 			resp=$(gh_gl_req "$gh_rel" "$gl_rel" -) || return 1
-			tag_name=$(jq -r '.tag_name' <<<"$resp") || return 1
+			tag_name=$(jq -r '.tag_name // empty' <<<"$resp")
+			if [ -z "$tag_name" ]; then
+				epr "Unexpected release response for '${src}' (no tag_name found)"
+				echo >&2 "$resp"
+				return 1
+			fi
+			# Only keep array entries that are actually {name,url}-shaped
+			# objects before filtering by extension - a defensive guard
+			# against APIs/mirrors that don't return the assets array in
+			# the exact shape we expect.
 			if [ "$USE_GITLAB" = 1 ]; then
-				matches=$(jq -e '.assets.links | map(select(.name | (endswith("asc") or endswith("json")) | not))' <<<"$resp") || return 1
+				matches=$(jq -e '[(.assets.links // [])[] | select(type == "object" and (.name? | type == "string")) | select((.name | endswith("asc") or endswith("json")) | not)]' <<<"$resp")
 			else
-				matches=$(jq -e '.assets | map(select(.name | (endswith("asc") or endswith("json")) | not))' <<<"$resp") || return 1
+				matches=$(jq -e '[(.assets // [])[] | select(type == "object" and (.name? | type == "string")) | select((.name | endswith("asc") or endswith("json")) | not)]' <<<"$resp")
+			fi
+			if [ $? -ne 0 ]; then
+				epr "Could not parse release assets for '${src}' (tag ${tag_name})"
+				echo >&2 "$resp"
+				return 1
 			fi
 			if [ "$(jq 'length' <<<"$matches")" -gt 1 ]; then
 				local matches_new
