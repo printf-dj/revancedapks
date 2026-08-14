@@ -8,8 +8,12 @@ BUILD_DIR="build"
 DL_SRCS=("direct" "archive" "apkmirror" "uptodown")
 
 if [ "${GITHUB_TOKEN-}" ]; then GH_HEADER="Authorization: token ${GITHUB_TOKEN}"; else GH_HEADER=; fi
+if [ "${GITLAB_TOKEN-}" ]; then GL_HEADER="PRIVATE-TOKEN: ${GITLAB_TOKEN}"; else GL_HEADER=; fi
 NEXT_VER_CODE=${NEXT_VER_CODE:-$(date +'%Y%m%d')}
 OS=$(uname -o)
+# Once a GitHub request fails (blocked/unreachable/rate-limited), we stop
+# retrying GitHub for the rest of this run and go straight to GitLab.
+GH_BLOCKED=${GH_BLOCKED:-0}
 
 toml_prep() {
 	if [ ! -f "$1" ]; then return 1; fi
@@ -80,17 +84,21 @@ get_prebuilts() {
 		dir=${TEMP_DIR}/${dir,,}-rv
 		[ -d "$dir" ] || mkdir "$dir"
 
-		local rv_rel="https://api.github.com/repos/${src}/releases" name_ver
+		local gh_rel="https://api.github.com/repos/${src}/releases"
+		local gl_rel="https://gitlab.com/api/v4/projects/$(gl_encode "$src")/releases"
+		local name_ver USE_GITLAB=0
 		if [ "$ver" = "dev" ]; then
 			local resp
-			resp=$(gh_req "$rv_rel" -) || return 1
+			resp=$(gh_gl_req "$gh_rel" "$gl_rel" -) || return 1
 			ver=$(jq -e -r '.[] | .tag_name' <<<"$resp" | get_highest_ver) || return 1
 		fi
 		if [ "$ver" = "latest" ]; then
-			rv_rel+="/latest"
+			gh_rel+="/latest"
+			gl_rel+="/permalink/latest"
 			name_ver="*"
 		else
-			rv_rel+="/tags/${ver}"
+			gh_rel+="/tags/${ver}"
+			gl_rel+="/${ver}"
 			name_ver="$ver"
 		fi
 
@@ -111,9 +119,13 @@ get_prebuilts() {
 		fi
 		if [ -z "$file" ]; then
 			local resp asset name
-			resp=$(gh_req "$rv_rel" -) || return 1
+			resp=$(gh_gl_req "$gh_rel" "$gl_rel" -) || return 1
 			tag_name=$(jq -r '.tag_name' <<<"$resp") || return 1
-			matches=$(jq -e '.assets | map(select(.name | (endswith("asc") or endswith("json")) | not))' <<<"$resp") || return 1
+			if [ "$USE_GITLAB" = 1 ]; then
+				matches=$(jq -e '.assets.links | map(select(.name | (endswith("asc") or endswith("json")) | not))' <<<"$resp") || return 1
+			else
+				matches=$(jq -e '.assets | map(select(.name | (endswith("asc") or endswith("json")) | not))' <<<"$resp") || return 1
+			fi
 			if [ "$(jq 'length' <<<"$matches")" -gt 1 ]; then
 				local matches_new
 				matches_new=$(jq -e -r 'map(select(.name | contains("-dev") | not))' <<<"$matches")
@@ -128,10 +140,15 @@ get_prebuilts() {
 				wpr "More than 1 asset was found for this release. Falling back to the first one found..."
 			fi
 			asset=$(jq -r ".[0]" <<<"$matches")
-			url=$(jq -r .url <<<"$asset")
 			name=$(jq -r .name <<<"$asset")
 			file="${dir}/${name}"
-			gh_dl "$file" "$url" >&2 || return 1
+			if [ "$USE_GITLAB" = 1 ]; then
+				url=$(jq -r '.direct_asset_url // .url' <<<"$asset")
+				gl_dl "$file" "$url" >&2 || return 1
+			else
+				url=$(jq -r .url <<<"$asset")
+				gh_dl "$file" "$url" >&2 || return 1
+			fi
 			echo "$tag: $(cut -d/ -f1 <<<"$src")/${name}  " >>"${cl_dir}/changelog.md"
 		else
 			grab_cl=false
@@ -141,7 +158,13 @@ get_prebuilts() {
 		fi
 
 		if [ "$tag" = "Patches" ]; then
-			if [ "$grab_cl" = true ]; then echo -e "[Changelog](https://github.com/${src}/releases/tag/${tag_name})\n" >>"${cl_dir}/changelog.md"; fi
+			if [ "$grab_cl" = true ]; then
+				if [ "$USE_GITLAB" = 1 ]; then
+					echo -e "[Changelog](https://gitlab.com/${src}/-/releases/${tag_name})\n" >>"${cl_dir}/changelog.md"
+				else
+					echo -e "[Changelog](https://github.com/${src}/releases/tag/${tag_name})\n" >>"${cl_dir}/changelog.md"
+				fi
+			fi
 			if [ "$REMOVE_RV_INTEGRATIONS_CHECKS" = true ]; then
 				local extensions_ext
 				extensions_ext=$(unzip -l "${file}" "extensions/shared.*" | grep -o "shared\..*") extensions_ext="${extensions_ext#*.}"
@@ -191,16 +214,28 @@ config_update() {
 			if [ "${sources["$PATCHES_SRC/$PATCHES_VER"]}" = 1 ]; then upped+=("$table_name"); fi
 		else
 			sources["$PATCHES_SRC/$PATCHES_VER"]=0
-			local rv_rel="https://api.github.com/repos/${PATCHES_SRC}/releases"
+			local gh_rel="https://api.github.com/repos/${PATCHES_SRC}/releases"
+			local gl_rel="https://gitlab.com/api/v4/projects/$(gl_encode "$PATCHES_SRC")/releases"
+			local use_gitlab=0
 			if [ "$PATCHES_VER" = "dev" ]; then
-				last_patches=$(gh_req "$rv_rel" - | jq -e -r '.[0]') || continue
+				last_patches=$(gh_gl_req "$gh_rel" "$gl_rel" -) || continue
+				use_gitlab=$USE_GITLAB
+				last_patches=$(jq -e -r '.[0]' <<<"$last_patches") || continue
 			elif [ "$PATCHES_VER" = "latest" ]; then
-				last_patches=$(gh_req "$rv_rel/latest" -) || continue
+				last_patches=$(gh_gl_req "$gh_rel/latest" "$gl_rel/permalink/latest" -) || continue
+				use_gitlab=$USE_GITLAB
 			else
-				last_patches=$(gh_req "$rv_rel/tags/${PATCHES_VER}" -) || continue
+				last_patches=$(gh_gl_req "$gh_rel/tags/${PATCHES_VER}" "$gl_rel/${PATCHES_VER}" -) || continue
+				use_gitlab=$USE_GITLAB
 			fi
-			if ! last_patches=$(jq -e -r '.assets[] | select(.name | (endswith("asc") or endswith("json")) | not) | .name' <<<"$last_patches"); then
-				abort "config_update error: '$last_patches'"
+			if [ "$use_gitlab" = 1 ]; then
+				if ! last_patches=$(jq -e -r '.assets.links[] | select(.name | (endswith("asc") or endswith("json")) | not) | .name' <<<"$last_patches"); then
+					abort "config_update error: '$last_patches'"
+				fi
+			else
+				if ! last_patches=$(jq -e -r '.assets[] | select(.name | (endswith("asc") or endswith("json")) | not) | .name' <<<"$last_patches"); then
+					abort "config_update error: '$last_patches'"
+				fi
 			fi
 			if [ "$last_patches" ]; then
 				if ! OP=$(grep "^Patches: ${PATCHES_SRC%%/*}/" build.md | grep -m1 "$last_patches"); then
@@ -251,6 +286,39 @@ gh_dl() {
 		pr "Getting '$1' from '$2'"
 		_req "$2" "$1" -H "$GH_HEADER" -H "Accept: application/octet-stream"
 	fi
+}
+gl_req() { _req "$1" "$2" -H "$GL_HEADER"; }
+gl_dl() {
+	if [ ! -f "$1" ]; then
+		pr "Getting '$1' from '$2'"
+		_req "$2" "$1" -H "$GL_HEADER"
+	fi
+}
+# URL-encode an "owner/repo" path for GitLab's API, which addresses
+# projects either by numeric ID or by URL-encoded namespace/path
+# (e.g. "ReVanced/revanced-patches" -> "ReVanced%2Frevanced-patches").
+gl_encode() { echo "${1//\//%2F}"; }
+
+# Request a GitHub API URL, transparently falling back to the equivalent
+# GitLab API URL if GitHub is unreachable/blocked (network error, DNS
+# failure, rate-limit, censorship, etc). Once GitHub is found to be
+# blocked, every subsequent call in this run skips straight to GitLab
+# instead of re-attempting (and re-timing-out on) GitHub.
+# Usage: gh_gl_req <github_url> <gitlab_url> <output ('-' for stdout)>
+# Sets the global USE_GITLAB to 1 if this particular call used GitLab,
+# or 0 if it used GitHub, so callers can branch on response shape.
+gh_gl_req() {
+	local gh_url=$1 gl_url=$2 op=$3
+	USE_GITLAB=0
+	if [ "$GH_BLOCKED" != 1 ]; then
+		if gh_req "$gh_url" "$op"; then
+			return 0
+		fi
+		wpr "GitHub request failed, falling back to GitLab..."
+		GH_BLOCKED=1
+	fi
+	USE_GITLAB=1
+	gl_req "$gl_url" "$op"
 }
 
 log() { echo -e "$1  " >>"build.md"; }
