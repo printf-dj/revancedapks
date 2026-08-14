@@ -69,6 +69,50 @@ java() {
 	fi
 }
 
+# Best-effort last resort: GitLab's release "links" are custom assets that
+# have to be re-uploaded explicitly - a plain git push-mirror does NOT
+# recreate them, so a mirrored release may only carry GitLab's own
+# auto-generated source zip/tar.gz (under assets.sources) with an empty
+# assets.links array. When that happens there is nothing to download, so
+# instead we clone the tagged source from GitLab and build it locally.
+# This is heuristic: it assumes a Gradle wrapper is present and that the
+# default 'build' task (override via BUILD_FROM_SOURCE_TASK) produces the
+# artifact somewhere under the checkout, which we then locate by filename
+# pattern. Verify the located file before trusting it in production.
+BUILD_FROM_SOURCE_TASK="${BUILD_FROM_SOURCE_TASK:-build}"
+build_from_source_gl() {
+	local src=$1 tag=$2 dir=$3 name_pattern=$4
+	if ! command -v git >/dev/null 2>&1; then
+		epr "git is not available, cannot build '${src}' from source"
+		return 1
+	fi
+	local clone_dir="${dir}/src-${tag//[^A-Za-z0-9._-]/_}"
+	if [ ! -d "$clone_dir" ]; then
+		pr "Cloning ${src}@${tag} from GitLab to build from source (mirror has no build artifact for this release)..." >&2
+		if ! git clone --quiet --depth 1 --branch "$tag" "https://gitlab.com/${src}.git" "$clone_dir" >&2; then
+			epr "Could not clone ${src}@${tag} from GitLab"
+			rm -rf "$clone_dir"
+			return 1
+		fi
+	fi
+	if [ ! -x "${clone_dir}/gradlew" ]; then
+		epr "'${src}' has no gradlew wrapper at the repo root, cannot build from source automatically"
+		return 1
+	fi
+	pr "Building ${src}@${tag} from source with './gradlew ${BUILD_FROM_SOURCE_TASK}' (this may take a while)..." >&2
+	if ! (cd "$clone_dir" && chmod +x ./gradlew && ./gradlew "$BUILD_FROM_SOURCE_TASK" -x test --no-daemon --console=plain) >&2; then
+		epr "Gradle build failed for '${src}@${tag}'"
+		return 1
+	fi
+	local built
+	built=$(find "$clone_dir" -type f -name "$name_pattern" ! -name "*-sources.jar" ! -name "*-javadoc.jar" ! -name "*-plain.jar" 2>/dev/null | sort | head -1)
+	if [ -z "$built" ]; then
+		epr "Gradle build for '${src}@${tag}' finished but produced no file matching '${name_pattern}' - adjust name_pattern/BUILD_FROM_SOURCE_TASK for this repo"
+		return 1
+	fi
+	echo "$built"
+}
+
 get_prebuilts() {
 	local cli_src=$1 cli_ver=$2 patches_src=$3 patches_ver=$4
 	pr "Getting prebuilts (${patches_src%/*})" >&2
@@ -118,7 +162,7 @@ get_prebuilts() {
 			file=$(grep "/[^/]*${ver#v}[^/]*\$" <<<"$file" | head -1)
 		fi
 		if [ -z "$file" ]; then
-			local resp asset name
+			local resp asset name built_from_source=false
 			resp=$(gh_gl_req "$gh_rel" "$gl_rel" -) || return 1
 			tag_name=$(jq -r '.tag_name // empty' <<<"$resp")
 			if [ -z "$tag_name" ]; then
@@ -148,22 +192,44 @@ get_prebuilts() {
 				fi
 			fi
 			if [ "$(jq 'length' <<<"$matches")" -eq 0 ]; then
-				epr "No asset was found"
-				return 1
+				if [ "$USE_GITLAB" = 1 ]; then
+					wpr "GitLab release for '${src}' (tag ${tag_name}) has no usable asset link - attempting to build from source instead..."
+					local src_pattern built
+					if [ "$tag" = "Patches" ]; then src_pattern="*.rvp"; else src_pattern="*.jar"; fi
+					if built=$(build_from_source_gl "$src" "$tag_name" "$dir" "$src_pattern"); then
+						name=$(basename "$built")
+						file="${dir}/${name}"
+						cp -f "$built" "$file" || return 1
+						built_from_source=true
+					else
+						epr "No usable asset found for '${src}' (tag ${tag_name}) on GitLab, and building from source failed"
+						return 1
+					fi
+				else
+					epr "No asset was found for '${src}' (tag ${tag_name}, GitHub)"
+					echo >&2 "$resp"
+					return 1
+				fi
 			elif [ "$(jq 'length' <<<"$matches")" -ne 1 ]; then
 				wpr "More than 1 asset was found for this release. Falling back to the first one found..."
 			fi
-			asset=$(jq -r ".[0]" <<<"$matches")
-			name=$(jq -r .name <<<"$asset")
-			file="${dir}/${name}"
-			if [ "$USE_GITLAB" = 1 ]; then
-				url=$(jq -r '.direct_asset_url // .url' <<<"$asset")
-				gl_dl "$file" "$url" >&2 || return 1
-			else
-				url=$(jq -r .url <<<"$asset")
-				gh_dl "$file" "$url" >&2 || return 1
+			if [ "$built_from_source" != true ]; then
+				asset=$(jq -r ".[0]" <<<"$matches")
+				name=$(jq -r .name <<<"$asset")
+				file="${dir}/${name}"
+				if [ "$USE_GITLAB" = 1 ]; then
+					url=$(jq -r '.direct_asset_url // .url' <<<"$asset")
+					gl_dl "$file" "$url" >&2 || return 1
+				else
+					url=$(jq -r .url <<<"$asset")
+					gh_dl "$file" "$url" >&2 || return 1
+				fi
 			fi
-			echo "$tag: $(cut -d/ -f1 <<<"$src")/${name}  " >>"${cl_dir}/changelog.md"
+			if [ "$built_from_source" = true ]; then
+				echo "$tag: $(cut -d/ -f1 <<<"$src")/${name} (built from source)  " >>"${cl_dir}/changelog.md"
+			else
+				echo "$tag: $(cut -d/ -f1 <<<"$src")/${name}  " >>"${cl_dir}/changelog.md"
+			fi
 		else
 			grab_cl=false
 			name=$(basename "$file")
