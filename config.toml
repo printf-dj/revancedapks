@@ -8,38 +8,42 @@ excluded-patches = "'Custom branding'"
 build-mode = "apk"
 version = "auto"
 apkmirror-dlurl = "https://www.apkmirror.com/apk/google-inc/youtube"
-uptodown-dlurl = "https://youtube.en.uptodown.com/android"
 
 [YouTube-Morphe]
 app-name = "YouTube"
 patches-source = "MorpheApp/morphe-patches"
 cli-source = "MorpheApp/morphe-cli"
 rv-brand = "Morphe"
-build-mode = "both"
+build-mode = "apk"
 apkmirror-dlurl = "https://www.apkmirror.com/apk/google-inc/youtube"
-uptodown-dlurl = "https://youtube.en.uptodown.com/android"
 archive-dlurl = "https://archive.org/download/jhc-apks/apks/com.google.android.youtube"
 
 [Music]
+app-name = "Music"
+patches-source = "MorpheApp/morphe-patches"
+cli-source = "MorpheApp/morphe-cli"
+rv-brand = "Morphe"
 build-mode = "apk"
 arch = "arm64-v8a"
 apkmirror-dlurl = "https://www.apkmirror.com/apk/google-inc/youtube-music"
-uptodown-dlurl = "https://youtube-music.en.uptodown.com/android"
+archive-dlurl = "https://archive.org/download/jhc-apks/apks/com.google.android.apps.youtube.music"
+enable-update-checks = false
 
 [X]
-patches-source = "crimera/piko"
-cli-source = "MorpheApp/morphe-cli"
-excluded-patches = "'Change link sharing domain'"
 build-mode = "apk"
-version = "auto"
-dpi = "120-640dpi"
-apkmirror-dlurl = "https://www.apkmirror.com/apk/x-corp/twitter"
-uptodown-dlurl = "https://twitter.en.uptodown.com/android"
-include-stock = "split"
+patches-source = "crimera/piko-newx"
+cli-source = "MorpheApp/morphe-cli"
+rv-brand = "Piko"
+archive-dlurl = "https://archive.org/download/jhc-apks/apks/com.twitter.android"
+version = "latest"
+included-patches = "'NewX: Restore Twitter branding'"
+enable-update-checks = false
 
 [Google-Photos]
 build-mode = "apk"
-version = "auto"
-arch = "both"
-apkmirror-dlurl = "https://www.apkmirror.com/apk/google-inc/photos"
-uptodown-dlurl = "https://google-photos.en.uptodown.com/android"
+patches-source = "RookieEnough/De-Vanced"
+rv-brand = "DeVanced"
+cli-source = "MorpheApp/morphe-cli"
+apkmirror-dlurl = "https://www.apkmirror.com/apk/google-inc/photos/"
+archive-dlurl = "https://archive.org/download/jhc-apks/apks/com.google.android.apps.photos"
+enable-update-checks = false
