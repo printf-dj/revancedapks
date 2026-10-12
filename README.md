@@ -44,7 +44,7 @@ Browse all published versions and download the APK you need.
 
 For supported non-root builds of YouTube, YouTube Music, and Google Photos, you may need a compatible Google services implementation.
 
-- **Morphe-compatible MicroG:** [MorpheApp/MicroG-RE](https://github.com/MorpheApp/MicroG-RE)
+- **Morphe-compatible MicroG:** [MorpheApp/MicroG-RE](https://morphe.software/microg)
 - **Morphe project:** [morphe.software](https://morphe.software)
 
 Follow the relevant installation instructions for your chosen APK. Requirements may differ between apps and builds.
