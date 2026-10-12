@@ -155,7 +155,7 @@ wait
 _clean_tmp
 if [ -z "$(ls -A1 "${BUILD_DIR}")" ]; then abort "All builds failed."; fi
 
-log "\nInstall [Microg](https://github.com/ReVanced/GmsCore/releases) for non-root YouTube, YT Music and Google Photos APKs"
+log "\nInstall [Microg](https://github.com/MorpheApp/MicroG-RE/releases/download/7.2.1/microg-7.2.1.apk) for non-root YouTube, YT Music and Google Photos APKs"
 
 SKIPPED=$(cat "$TEMP_DIR"/skipped 2>/dev/null || :)
 if [ -n "$SKIPPED" ]; then
