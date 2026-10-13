@@ -71,7 +71,7 @@ jobs:
             gh release edit "$TAG" --title "Release" --notes "$BODY"
             gh release upload "$TAG" ./build/* --clobber
           else
-            gh release create "$TAG" ./build/* --title "Release" --notes "$BODY"
+            gh release create "$TAG" ./build/* --title "Revanced/Morphe Apk" --notes "$BODY"
           fi
 
       - name: Update modules changelog and update json
